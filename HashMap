@@ -1,0 +1,183 @@
+#include <iostream>
+#include <vector>
+#include <utility>
+#include <initializer_list>
+#include <iterator>
+#include <list>
+#include <stdexcept>
+#include <functional>
+
+template <class KeyType, class ValueType, class Hash = std::hash<KeyType> >
+class HashMap {
+ private:
+	typedef std::pair <const KeyType, ValueType> content;
+	Hash Hasher;
+	size_t SizeBooster = 2;
+	size_t TableSize, MaxSize;
+	std::vector <std::vector <typename std::list<content>::iterator> > HashTable;
+	std::list <content> Elems;
+
+ public:
+	typedef typename std::list<content>::iterator iterator;
+	typedef typename std::list<content>::const_iterator const_iterator;
+
+	HashMap(const Hash& Hasher = Hash()): Hasher(Hasher), TableSize(0), MaxSize(1), HashTable(1) {}
+
+	template <class It>
+	HashMap(It first, It last, const Hash& Hasher = Hash()):
+			Hasher(Hasher), TableSize(0), MaxSize(1), HashTable(1) {
+		while (first != last) {
+			auto el = *first;
+			insert(el);
+			++first;
+		}
+	}
+
+	HashMap(const std::initializer_list <content> &il, const Hash& Hasher = Hash()):
+			Hasher(Hasher), TableSize(0), MaxSize(1), HashTable(1) {
+		for (auto it = il.begin(); it != il.end(); ++it) {
+			auto el = *it;
+			insert(el);
+		}
+	}
+
+	HashMap<KeyType, ValueType, Hash>& operator = (const HashMap<KeyType, ValueType, Hash>& other) {
+		std::list <content> telems;
+		for (auto it = other.begin(); it != other.end(); ++it) {
+			telems.push_front(*it);
+		}
+		TableSize = 0;
+		MaxSize = 1;
+		HashTable.clear();
+		HashTable.push_back({});
+		Hasher = other.hash_function();
+		Elems.clear();
+		for (auto el : telems) {
+			insert(el);
+		}
+		return *this;
+	}
+
+	void rebuild() {
+		HashTable.clear();
+		MaxSize *= SizeBooster;
+		HashTable.resize(MaxSize);
+		for (auto it = Elems.begin(); it != Elems.end(); ++it) {
+			size_t th = Hasher(it->first) % HashTable.size();
+			HashTable[th].push_back(it);
+		}
+	}
+
+	size_t size() const {
+		return TableSize;
+	}
+
+	bool empty() const {
+		return TableSize == 0;
+	}
+
+	Hash hash_function() const {
+		return Hasher;
+	}
+
+	void insert(const content &el) {
+		size_t th = Hasher(el.first) % HashTable.size();
+		for (auto tel : HashTable[th]) {
+			if (tel->first == el.first) {
+				return;
+			}
+		}
+		++TableSize;
+		Elems.push_front(el);
+		HashTable[th].push_back(Elems.begin());
+		if (TableSize == MaxSize) {
+			rebuild();
+		}
+	}
+
+	void erase(const KeyType &key) {
+		size_t th = Hasher(key) % HashTable.size();
+		for (size_t i = 0; i < HashTable[th].size(); ++i) {
+			if (HashTable[th][i]->first == key) {
+				Elems.erase(HashTable[th][i]);
+				HashTable[th].erase(HashTable[th].begin() + i);
+				--TableSize;
+				return;
+			}
+		}
+	}
+
+	iterator begin() {
+		return Elems.begin();
+	}
+
+	const_iterator begin() const {
+		return Elems.begin();
+	}
+
+	iterator end() {
+		return Elems.end();
+	}
+
+	const_iterator end() const {
+		return Elems.end();
+	}
+
+	const_iterator cbegin() const {
+		return Elems.cbegin();
+	}
+
+	const_iterator cend() const {
+		return Elems.cend();
+	}
+
+	iterator find(const KeyType &key) {
+		size_t th = Hasher(key) % HashTable.size();
+		for (auto it : HashTable[th]) {
+			if (it->first == key) {
+				return it;
+			}
+		}
+		return Elems.end();
+	}
+
+	const_iterator find(const KeyType &key) const {
+		size_t th = Hasher(key) % HashTable.size();
+		for (auto it : HashTable[th]) {
+			if (it->first == key) {
+				return it;
+			}
+		}
+		return Elems.end();
+	}
+
+	ValueType& operator[] (const KeyType &key) {
+		size_t th = Hasher(key) % HashTable.size();
+		for (auto it : HashTable[th]) {
+			if (it->first == key) {
+				return it->second;
+			}
+		}
+		insert(std::make_pair(key, ValueType()));
+		return Elems.begin()->second;
+	}
+
+	const ValueType& at (const KeyType &key) const {
+		size_t th = Hasher(key) % HashTable.size();
+		for (auto it : HashTable[th]) {
+			if (it->first == key) {
+				return it->second;
+			}
+		}
+		throw std::out_of_range("exception");
+	}
+
+	void clear() {
+		for (auto el : Elems) {
+			size_t th = Hasher(el.first) % HashTable.size();
+			HashTable[th].clear();
+		}
+		Elems.clear();
+		TableSize = 0;
+	}
+};
